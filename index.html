@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Climbing Periodization Planner</title>
+<meta name="description" content="Plan and track a climbing periodization training cycle, phase by phase — works fully offline.">
+
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#12181c">
+<link rel="icon" href="icons/favicon-32.png" sizes="32x32" type="image/png">
+<link rel="icon" href="icons/favicon-64.png" sizes="64x64" type="image/png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Climb Planner">
+
+<style>
+  :root{
+    --bg: #12181c;
+    --bg-grad: #0d1215;
+    --panel: #1a2228;
+    --panel-raised: #1f292f;
+    --ink: #e9edee;
+    --sub: #92a3ab;
+    --sub-dim: #5f6f77;
+    --rule: #2a353c;
+    --accent: #6fd0c8;
+    --p0: #6fa8d9;
+    --p1: #9b85d9;
+    --p2: #c9556b;
+    --p3: #d99a4e;
+    --p4: #6fd0c8;
+    --vac: #46545c;
+    --dark-ink: #0e1417;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(900px 480px at 50% -80px, #1b262c 0%, var(--bg) 55%, var(--bg-grad) 100%) fixed;
+    color:var(--ink);
+    font-family: "Helvetica Neue", Arial, sans-serif;
+    padding:20px 14px calc(50px + env(safe-area-inset-bottom));
+    -webkit-tap-highlight-color: transparent;
+    min-height:100vh;
+  }
+  .wrap{max-width:500px; margin:0 auto;}
+  header.top{margin-bottom:18px;}
+  h1{
+    font-family: "Iowan Old Style","Georgia",serif;
+    font-weight:600;
+    font-size:21px;
+    margin:0 0 4px;
+    letter-spacing:0.01em;
+  }
+  .tagline{
+    color:var(--sub);
+    font-size:12.5px;
+    margin:0;
+    line-height:1.5;
+  }
+  .offline-banner{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    background:#3a2f1c;
+    border:1px solid #6b552b;
+    color:#e9d9ae;
+    font-size:12px;
+    padding:8px 12px;
+    border-radius:7px;
+    margin:12px 0 0;
+  }
+  .offline-banner .dot{
+    width:7px;height:7px;border-radius:50%;
+    background:#e0b23d;
+    flex:none;
+  }
+  .install-banner{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    background:var(--panel-raised);
+    border:1px solid var(--rule);
+    color:var(--ink);
+    font-size:12.5px;
+    padding:10px 12px;
+    border-radius:7px;
+    margin:12px 0 0;
+  }
+  .install-banner button{
+    flex:none;
+    padding:7px 12px;
+    font-size:12.5px;
+    background:var(--accent);
+    border-color:var(--accent);
+    color:var(--dark-ink);
+    font-weight:600;
+  }
+  .install-banner .dismiss{
+    background:transparent;
+    border:none;
+    color:var(--sub);
+    padding:4px 6px;
+    font-size:16px;
+    line-height:1;
+  }
+  .card{
+    background:var(--panel);
+    border:1px solid var(--rule);
+    border-radius:10px;
+    padding:16px;
+    margin-bottom:14px;
+    box-shadow:0 6px 20px -12px rgba(0,0,0,0.6);
+  }
+  label{
+    display:block;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--sub);
+    margin-bottom:6px;
+  }
+  input[type="date"]{
+    background:var(--panel-raised);
+    border:1px solid var(--rule);
+    color:var(--ink);
+    border-radius:6px;
+    padding:9px 10px;
+    font-size:14px;
+    width:100%;
+    font-family:inherit;
+    color-scheme:dark;
+  }
+  input[type="date"]:focus, button:focus-visible{
+    outline:2px solid var(--accent);
+    outline-offset:1px;
+  }
+  button{
+    font-family:inherit;
+    font-size:13px;
+    border-radius:7px;
+    border:1px solid var(--rule);
+    background:var(--panel-raised);
+    color:var(--ink);
+    padding:9px 12px;
+    cursor:pointer;
+    transition:background .15s ease, border-color .15s ease, transform .1s ease;
+  }
+  button:active{transform:scale(0.97);}
+  button.active{
+    background:var(--p2);
+    border-color:var(--p2);
+    color:#fff;
+  }
+  .vac-toggle{
+    width:100%;
+    margin-top:12px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:8px;
+  }
+
+  /* Today status card */
+  .status-card{
+    cursor:pointer;
+    position:relative;
+    overflow:hidden;
+  }
+  .status-card::before{
+    content:"";
+    position:absolute; inset:0;
+    background:linear-gradient(135deg, color-mix(in srgb, var(--status-color, var(--accent)) 14%, transparent), transparent 60%);
+    pointer-events:none;
+  }
+  .status-top{
+    display:flex;
+    align-items:baseline;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:6px;
+  }
+  .status-label{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.07em;
+    color:var(--sub);
+  }
+  .status-date{
+    font-size:11.5px;
+    color:var(--sub);
+  }
+  .status-main{
+    font-size:16px;
+    font-weight:600;
+    margin-bottom:4px;
+    display:flex;
+    align-items:center;
+    gap:8px;
+    flex-wrap:wrap;
+  }
+  .status-sub{
+    font-size:12.5px;
+    color:var(--sub);
+    margin-bottom:10px;
+  }
+  .progress-track{
+    height:6px;
+    border-radius:4px;
+    background:var(--panel-raised);
+    overflow:hidden;
+    border:1px solid var(--rule);
+  }
+  .progress-fill{
+    height:100%;
+    border-radius:4px;
+    background:var(--status-color, var(--accent));
+    transition:width .3s ease;
+  }
+  .progress-caption{
+    display:flex;
+    justify-content:space-between;
+    font-size:10.5px;
+    color:var(--sub-dim);
+    margin-top:5px;
+  }
+
+  /* Calendar */
+  .cal-header{
+    display:grid;
+    grid-template-columns:auto 1fr auto;
+    align-items:center;
+    gap:6px;
+  }
+  .nav-btn{
+    width:34px; height:34px;
+    display:flex; align-items:center; justify-content:center;
+    padding:0;
+    font-size:16px;
+    border-radius:50%;
+    line-height:1;
+  }
+  .month-title{
+    text-align:center;
+  }
+  .month-title .m-name{
+    font-family:"Iowan Old Style","Georgia",serif;
+    font-size:16.5px;
+    font-weight:600;
+  }
+  .month-phases{
+    font-size:10.5px;
+    color:var(--sub);
+    margin-top:2px;
+    min-height:13px;
+  }
+  .jump-today{
+    display:block;
+    margin:8px auto 0;
+    background:transparent;
+    border:none;
+    color:var(--accent);
+    font-size:11.5px;
+    padding:2px 4px;
+    text-decoration:underline;
+    text-underline-offset:2px;
+  }
+
+  .legend{
+    display:flex;
+    flex-wrap:wrap;
+    gap:7px 10px;
+    margin:14px 0 2px;
+    font-size:10.5px;
+    color:var(--sub);
+  }
+  .legend span{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    background:var(--panel-raised);
+    border:1px solid var(--rule);
+    padding:3px 8px 3px 6px;
+    border-radius:20px;
+  }
+  .dot{width:8px; height:8px; border-radius:50%; display:inline-block; flex:none;}
+
+  .weekday-row{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:4px;
+    margin-top:14px;
+    font-size:10px;
+    font-weight:600;
+    letter-spacing:0.03em;
+    color:var(--sub-dim);
+    text-align:center;
+  }
+  .weekday-row .weekend{color:var(--sub);}
+  .cal-grid{
+    display:grid;
+    grid-template-columns:repeat(7,1fr);
+    gap:4px;
+    margin-top:6px;
+  }
+  .day{
+    aspect-ratio:1;
+    border-radius:6px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    font-size:12px;
+    color:var(--dark-ink);
+    font-weight:600;
+    position:relative;
+    border:1.5px solid transparent;
+    background:var(--panel-raised);
+    cursor:default;
+    user-select:none;
+  }
+  .day.out-of-plan{
+    color:var(--sub-dim);
+    font-weight:400;
+    background:transparent;
+    border-style:dashed;
+    border-color:var(--rule);
+  }
+  .day.adjacent{opacity:0.32;}
+  .day.vacation{
+    background:var(--vac) !important;
+    color:#c7d2d7;
+    font-weight:500;
+  }
+  .day.vacation::after{
+    content:"✈";
+    position:absolute;
+    font-size:8.5px;
+    bottom:2px;
+    right:3px;
+    opacity:0.85;
+  }
+  .day.clickable, .day.nav{cursor:pointer;}
+  .day.clickable:hover, .day.nav:hover{filter:brightness(1.12);}
+  .day.selected{
+    border-color:#fff;
+    box-shadow:0 0 0 1px rgba(255,255,255,0.35);
+  }
+  .day.today{
+    box-shadow:0 0 0 2px var(--accent);
+  }
+  .day.today.selected{
+    box-shadow:0 0 0 2px var(--accent), 0 0 0 4px rgba(255,255,255,0.35);
+  }
+  .day-num{position:relative; z-index:1;}
+
+  .phase-pill{
+    display:inline-block;
+    font-size:11px;
+    font-weight:600;
+    padding:3px 10px;
+    border-radius:20px;
+    color:var(--dark-ink);
+    margin-bottom:2px;
+  }
+  .day-meta{
+    font-size:11.5px;
+    color:var(--sub);
+    margin-bottom:12px;
+  }
+  h2{
+    font-size:15px;
+    margin:0 0 2px;
+    font-family: "Iowan Old Style","Georgia",serif;
+  }
+  h3{
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:0.06em;
+    color:var(--sub);
+    margin:16px 0 8px;
+  }
+  h3:first-child{margin-top:0;}
+  .vol-line{
+    font-size:13px;
+    margin-bottom:10px;
+    color:var(--ink);
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12.5px;
+  }
+  td{
+    padding:7px 0;
+    border-bottom:1px solid var(--rule);
+    vertical-align:top;
+  }
+  tr:last-child td{border-bottom:none;}
+  td.ex-name{
+    width:44%;
+    color:var(--ink);
+    font-weight:500;
+    padding-right:8px;
+  }
+  td.ex-desc{
+    color:var(--sub);
+  }
+  .curve-effect{
+    font-size:12.5px;
+    color:var(--sub);
+    line-height:1.55;
+    margin-bottom:8px;
+  }
+  .curve-effect b{color:var(--ink);}
+  .nutrition-text{
+    font-size:12.5px;
+    color:var(--sub);
+    line-height:1.6;
+  }
+  .empty-hint{
+    font-size:12.5px;
+    color:var(--sub);
+    text-align:center;
+    padding:20px 0;
+  }
+  footer.app-footer{
+    text-align:center;
+    font-size:10.5px;
+    color:var(--sub-dim);
+    padding:6px 0 0;
+  }
+  @media (min-width:600px){
+    .wrap{max-width:560px;}
+    .day{font-size:13px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <h1>Climbing Periodization Planner</h1>
+    <p class="tagline">Pick a start date, mark any vacations, then tap a day to see that phase's exercises, curve effects, and nutrition guidance. Works fully offline once loaded.</p>
+    <div class="offline-banner" id="offlineBanner" hidden>
+      <span class="dot"></span>
+      <span>You're offline — your plan is saved on this device and still fully usable.</span>
+    </div>
+    <div class="install-banner" id="installBanner" hidden>
+      <span>Install this planner on your home screen for one-tap offline access.</span>
+      <button id="installBtn">Install</button>
+      <button class="dismiss" id="installDismiss" aria-label="Dismiss">&times;</button>
+    </div>
+  </header>
+
+  <div class="card">
+    <label for="startDate">Plan start date</label>
+    <input type="date" id="startDate">
+    <button class="vac-toggle" id="vacBtn">Mark vacation days</button>
+  </div>
+
+  <div class="card status-card" id="statusCard">
+    <div class="status-top">
+      <span class="status-label">Today</span>
+      <span class="status-date" id="statusDate"></span>
+    </div>
+    <div class="status-main" id="statusMain"></div>
+    <div class="status-sub" id="statusSub"></div>
+    <div class="progress-track"><div class="progress-fill" id="statusProgress"></div></div>
+    <div class="progress-caption">
+      <span id="statusProgressLeft"></span>
+      <span id="statusProgressRight"></span>
+    </div>
+  </div>
+
+  <div class="card" id="calCard">
+    <div class="cal-header">
+      <button class="nav-btn" id="prevMonthBtn" aria-label="Previous month">‹</button>
+      <div class="month-title">
+        <div class="m-name" id="monthLabel"></div>
+        <div class="month-phases" id="monthPhases"></div>
+      </div>
+      <button class="nav-btn" id="nextMonthBtn" aria-label="Next month">›</button>
+    </div>
+    <button class="jump-today" id="jumpTodayBtn" hidden>Jump to today</button>
+
+    <div class="legend" id="legend"></div>
+    <div class="weekday-row">
+      <div>Mo</div><div>Tu</div><div>We</div><div>Th</div><div>Fr</div><div class="weekend">Sa</div><div class="weekend">Su</div>
+    </div>
+    <div class="cal-grid" id="calGrid"></div>
+  </div>
+
+  <div class="card" id="detailCard">
+    <div class="empty-hint">Select a day on the calendar to see its training details.</div>
+  </div>
+
+  <footer class="app-footer">Runs entirely on this device — no data leaves your browser.</footer>
+</div>
+
+<script>
+const PHASES = [
+  {
+    name: "Aerobic Base",
+    days: 21,
+    color: "#6fa8d9",
+    volume: "2–3 sessions/week · 30–45 min/session · low fatigue, sessions can be close together",
+    exercises: [
+      ["ARCing (traverse or hangboard jug)", "Continuous low-intensity climbing/hanging, 20–45 min, ~40–50% max effort"],
+      ["Intermittent low-intensity hangs (board-only)", "10s on / 5s off, large edge/jug, ~30–40% max, 5–10+ min continuous"],
+      ["Hip flexor / thoracic spine mobility", "10–15 min, general range-of-motion work"]
+    ],
+    lactate: "Shifts curve <b>right</b> — delays lactate onset (raises LT1).",
+    cf: "Raises <b>CF itself</b> (the asymptote) via improved capillary/mitochondrial density.",
+    nutrition: "Low training stress phase — standard recovery-range protein is sufficient, no special elevation needed. Moderate-to-lower carb availability on some sessions can be tolerated (and may enhance mitochondrial adaptation signaling, since this phase trains fat oxidation). Good window to prioritize micronutrient-dense whole foods generally."
+  },
+  {
+    name: "Max Strength",
+    days: 21,
+    color: "#9b85d9",
+    volume: "2 sessions/week, 48–72h apart · 30–40 min/session",
+    exercises: [
+      ["Max hangs (hangboard)", "5–10s hold, ~85–95% max effort, 4–6 sets, 3+ min rest between"],
+      ["Weighted pull-ups (if cleared)", "3–5 reps, heavy load, 3–4 sets"],
+      ["Antagonist: push-ups", "3 sets × 10–15"],
+      ["Antagonist: band pull-aparts", "3 sets × 15–20"],
+      ["Antagonist: rotator cuff (band external rotation)", "3 sets × 12–15 per side"]
+    ],
+    lactate: "Minimal direct effect — phosphocreatine-dominant, low lactate involvement.",
+    cf: "Raises the <b>early/high-force ceiling</b> (left end of curve) — doesn't move CF much on its own.",
+    nutrition: "Push protein toward the higher end of your target range — strength-training-induced muscle protein synthesis now adds to existing recovery demand. Creatine monohydrate (3–5g/day) is well-evidenced here if not already using it. Carb timing is less critical since sessions are short and PCr-dependent rather than glycogen-limited."
+  },
+  {
+    name: "Power",
+    days: 14,
+    color: "#c9556b",
+    volume: "2 sessions/week, 48h+ apart · 30–40 min/session",
+    exercises: [
+      ["RFD hangs (hangboard substitute for true power)", "Explosive drive to peak force, hold 1–2s, release; 4–6 sets, full rest between"],
+      ["Campus board (only once cleared)", "Basic ladders, 4–6 sets, full rest"],
+      ["Limit bouldering (if available)", "1–4 move max-difficulty problems, full recovery 3+ min"]
+    ],
+    lactate: "Negligible — pure ATP-PCr system, no lactate produced.",
+    cf: "Raises the <b>peak force/velocity ceiling</b> at the far-left (short-duration) end.",
+    nutrition: "Similar profile to Max Strength — creatine remains relevant, protein steady, carbs not a major limiter given short session duration. Avoid training in a large calorie/carb deficit here, since under-fueling degrades explosive/CNS-dependent output disproportionately."
+  },
+  {
+    name: "Power-Endurance / Anaerobic Capacity",
+    days: 21,
+    color: "#d99a4e",
+    volume: "2 sessions/week, 2–3 days apart minimum · 40–60 min/session — most fatiguing phase, protect recovery",
+    exercises: [
+      ["Repeaters — power-endurance sub-phase", "7s on / 3s off × 6 reps = 1 set, ~60–70% max, 4–6 sets, 3+ min rest between sets"],
+      ["Repeaters — anaerobic capacity sub-phase", "Same structure, rest between sets cut to 60–90s, or 8–10 reps/set, taken close to failure"],
+      ["4x4s (if climbing, not board-only)", "4 boulder problems back-to-back, 4 sets, 3–5 min rest between sets"]
+    ],
+    lactate: "Power-endurance sub-phase pushes <b>LT2/MLSS rightward</b>; anaerobic capacity sub-phase raises <b>tolerance/buffering above LT2</b> without moving it much.",
+    cf: "Raises <b>W′</b> (anaerobic work capacity — area above the CF asymptote) and extends the curve's mid-section.",
+    nutrition: "Highest carb-demand phase — glycolysis dominates, so glycogen availability directly limits quality reps/sets; prioritize carbs before and after these sessions. Electrolyte management matters more here too. Most catabolic phase — be deliberate about post-session protein timing (within a few hours). Worth flagging to a physio/dietitian given overlap with tissue healing."
+  },
+  {
+    name: "Peak / Taper",
+    days: 7,
+    color: "#6fd0c8",
+    volume: "1–2 sessions/week · 20–30 min/session, lower intensity",
+    exercises: [
+      ["Light movement-quality hangs or easy climbing", "Low intensity, focus on technique/feel, not stimulus"],
+      ["Full rest", "2–3 days before any goal send or trip"]
+    ],
+    lactate: "No new stimulus — allows fatigue to clear so prior lactate-curve gains are expressed.",
+    cf: "Consolidates prior CF/W′ gains rather than adding new stimulus.",
+    nutrition: "Maintain a slight carb emphasis to support glycogen supercompensation ahead of a goal event, but total calories can taper down alongside training volume. Avoid introducing new foods or supplements close to a peak event."
+  }
+];
+const TOTAL_TRAINING_DAYS = PHASES.reduce((s,p)=>s+p.days,0);
+const BOUNDARIES = (()=>{ let acc=0; return PHASES.map(p=>{acc+=p.days; return acc;}); })();
+const MONTH_NAMES = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+const STORAGE_KEY = "climbPlannerState.v1";
+
+function phaseIndexForTrainingDay(n){
+  for(let i=0;i<BOUNDARIES.length;i++){ if(n < BOUNDARIES[i]) return i; }
+  return BOUNDARIES.length-1;
+}
+
+function isoFromDate(d){
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+function todayIso(){ return isoFromDate(new Date()); }
+function dateFromIso(iso){ return new Date(iso + 'T00:00:00'); }
+function daysInMonth(y,m){ return new Date(y, m+1, 0).getDate(); }
+
+let vacationSet = new Set();
+let vacMode = false;
+let selectedIso = null;
+let viewYear, viewMonth;
+
+const startInput = document.getElementById('startDate');
+const vacBtn = document.getElementById('vacBtn');
+const calGrid = document.getElementById('calGrid');
+const legendEl = document.getElementById('legend');
+const detailCard = document.getElementById('detailCard');
+const monthLabel = document.getElementById('monthLabel');
+const monthPhasesEl = document.getElementById('monthPhases');
+const prevMonthBtn = document.getElementById('prevMonthBtn');
+const nextMonthBtn = document.getElementById('nextMonthBtn');
+const jumpTodayBtn = document.getElementById('jumpTodayBtn');
+const statusCard = document.getElementById('statusCard');
+const statusDate = document.getElementById('statusDate');
+const statusMain = document.getElementById('statusMain');
+const statusSub = document.getElementById('statusSub');
+const statusProgress = document.getElementById('statusProgress');
+const statusProgressLeft = document.getElementById('statusProgressLeft');
+const statusProgressRight = document.getElementById('statusProgressRight');
+const offlineBanner = document.getElementById('offlineBanner');
+
+function saveState(){
+  try{
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      startDate: startInput.value,
+      vacations: [...vacationSet],
+      selectedIso
+    }));
+  }catch(e){}
+}
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+
+function buildSchedule(startIso){
+  const start = dateFromIso(startIso);
+  let cur = new Date(start);
+  let trainingCount = 0;
+  const schedule = [];
+  let guard = 0;
+  while(trainingCount < TOTAL_TRAINING_DAYS && guard < 500){
+    guard++;
+    const iso = isoFromDate(cur);
+    const isVac = vacationSet.has(iso);
+    if(isVac){
+      schedule.push({date:new Date(cur), iso, isVacation:true, phaseIndex:null, trainingDay:null});
+    } else {
+      const pIdx = phaseIndexForTrainingDay(trainingCount);
+      schedule.push({date:new Date(cur), iso, isVacation:false, phaseIndex:pIdx, trainingDay:trainingCount});
+      trainingCount++;
+    }
+    cur.setDate(cur.getDate()+1);
+  }
+  return schedule;
+}
+
+function currentPlan(){
+  const startIso = startInput.value || todayIso();
+  const arr = buildSchedule(startIso);
+  const map = new Map();
+  arr.forEach(e => map.set(e.iso, e));
+  return { startIso, arr, map, endIso: arr.length ? arr[arr.length-1].iso : startIso };
+}
+
+function renderLegend(){
+  legendEl.innerHTML = PHASES.map(p =>
+    `<span><span class="dot" style="background:${p.color}"></span>${p.name}</span>`
+  ).join('') + `<span><span class="dot" style="background:var(--vac)"></span>Vacation</span>`;
+}
+
+function fmtDate(d){
+  return d.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short', year:'numeric'});
+}
+function fmtDateShort(d){
+  return d.toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'});
+}
+
+function renderStatus(plan){
+  const tIso = todayIso();
+  const today = new Date();
+  statusDate.textContent = fmtDateShort(today);
+  const entry = plan.map.get(tIso);
+  const total = plan.arr.length;
+  const posIndex = plan.arr.findIndex(e => e.iso === tIso);
+
+  let color = 'var(--accent)';
+  let progressPct = 0;
+
+  if(tIso < plan.startIso){
+    const days = Math.round((dateFromIso(plan.startIso) - dateFromIso(tIso)) / 86400000);
+    statusMain.textContent = `Plan starts in ${days} day${days===1?'':'s'}`;
+    statusSub.textContent = `Kicking off ${fmtDate(dateFromIso(plan.startIso))} with ${PHASES[0].name}.`;
+    progressPct = 0;
+    statusProgressLeft.textContent = 'Not started';
+    statusProgressRight.textContent = `${total} day plan`;
+  } else if(posIndex === -1 && tIso > plan.endIso){
+    statusMain.textContent = 'Plan complete 🎉';
+    statusSub.textContent = `You finished the full ${total}-day cycle on ${fmtDate(dateFromIso(plan.endIso))}. Nice work.`;
+    progressPct = 100;
+    color = PHASES[PHASES.length-1].color;
+    statusProgressLeft.textContent = `${total} / ${total} days`;
+    statusProgressRight.textContent = 'Done';
+  } else if(entry && entry.isVacation){
+    statusMain.innerHTML = `✈ Vacation day`;
+    statusSub.textContent = `Day ${posIndex+1} of ${total} in the plan — resume training on your next non-vacation day.`;
+    color = 'var(--vac)';
+    progressPct = ((posIndex+1)/total)*100;
+    statusProgressLeft.textContent = `Day ${posIndex+1} / ${total}`;
+    statusProgressRight.textContent = 'Resting';
+  } else if(entry){
+    const phase = PHASES[entry.phaseIndex];
+    const dayInPhase = entry.trainingDay - (BOUNDARIES[entry.phaseIndex-1] || 0) + 1;
+    color = phase.color;
+    statusMain.innerHTML = `<span class="phase-pill" style="background:${phase.color}">${phase.name}</span>`;
+    statusSub.textContent = `Training day ${dayInPhase} of ${phase.days} in this phase · day ${entry.trainingDay+1} of ${TOTAL_TRAINING_DAYS} overall.`;
+    progressPct = ((entry.trainingDay+1)/TOTAL_TRAINING_DAYS)*100;
+    statusProgressLeft.textContent = `Day ${entry.trainingDay+1} / ${TOTAL_TRAINING_DAYS} training`;
+    statusProgressRight.textContent = phase.name;
+  } else {
+    statusMain.textContent = 'No plan yet';
+    statusSub.textContent = 'Set a start date above to generate your schedule.';
+    progressPct = 0;
+  }
+
+  statusCard.style.setProperty('--status-color', color);
+  statusProgress.style.width = Math.max(0, Math.min(100, progressPct)) + '%';
+}
+
+function renderCalendar(plan){
+  const tIso = todayIso();
+  const now = new Date();
+  const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth();
+  jumpTodayBtn.hidden = isCurrentMonth;
+
+  monthLabel.textContent = `${MONTH_NAMES[viewMonth]} ${viewYear}`;
+
+  calGrid.innerHTML = '';
+
+  const firstOfMonth = new Date(viewYear, viewMonth, 1);
+  const weekday = firstOfMonth.getDay();
+  const leading = (weekday + 6) % 7;
+  const totalDays = daysInMonth(viewYear, viewMonth);
+  const TOTAL_CELLS = 42;
+
+  const monthPhaseNames = [];
+
+  function makeCell(d, adjacent){
+    const iso = isoFromDate(d);
+    const entry = plan.map.get(iso);
+    const cell = document.createElement('div');
+    cell.className = 'day';
+    const num = document.createElement('span');
+    num.className = 'day-num';
+    num.textContent = d.getDate();
+    cell.appendChild(num);
+
+    if(adjacent) cell.classList.add('adjacent');
+
+    if(entry){
+      if(!adjacent){
+        const pname = entry.isVacation ? 'Vacation' : PHASES[entry.phaseIndex].name;
+        if(monthPhaseNames[monthPhaseNames.length-1] !== pname) monthPhaseNames.push(pname);
+      }
+      if(entry.isVacation){
+        cell.classList.add('vacation');
+      } else {
+        cell.style.background = PHASES[entry.phaseIndex].color;
+      }
+    } else {
+      cell.classList.add('out-of-plan');
+    }
+
+    if(iso === tIso) cell.classList.add('today');
+    if(iso === selectedIso) cell.classList.add('selected');
+
+    if(adjacent){
+      cell.classList.add('nav');
+      cell.addEventListener('click', ()=>{
+        viewYear = d.getFullYear();
+        viewMonth = d.getMonth();
+        renderAll();
+      });
+    } else {
+      const isClickable = vacMode ? iso >= plan.startIso : !!(entry && !entry.isVacation);
+      if(isClickable){
+        cell.classList.add('clickable');
+        cell.addEventListener('click', ()=> onDayClick(iso, entry, plan));
+      }
+    }
+    return cell;
+  }
+
+  for(let i=leading;i>0;i--){
+    calGrid.appendChild(makeCell(new Date(viewYear, viewMonth, 1-i), true));
+  }
+  for(let day=1; day<=totalDays; day++){
+    calGrid.appendChild(makeCell(new Date(viewYear, viewMonth, day), false));
+  }
+  const filled = leading + totalDays;
+  for(let i=1; i<=TOTAL_CELLS-filled; i++){
+    calGrid.appendChild(makeCell(new Date(viewYear, viewMonth, totalDays+i), true));
+  }
+
+  if(monthPhaseNames.length){
+    monthPhasesEl.textContent = monthPhaseNames.join(' · ');
+  } else {
+    const monthEnd = new Date(viewYear, viewMonth+1, 0);
+    monthPhasesEl.textContent = monthEnd < dateFromIso(plan.startIso) ? '' : 'No training days this month';
+  }
+}
+
+function onDayClick(iso, entry, plan){
+  if(iso < plan.startIso) return;
+  if(vacMode){
+    if(vacationSet.has(iso)){
+      vacationSet.delete(iso);
+    } else {
+      vacationSet.add(iso);
+      if(selectedIso === iso) selectedIso = null;
+    }
+    saveState();
+    renderAll();
+    return;
+  }
+  if(!entry || entry.isVacation) return;
+  selectedIso = iso;
+  saveState();
+  renderAll();
+}
+
+function renderDetail(plan){
+  const entry = selectedIso ? plan.map.get(selectedIso) : null;
+  if(!entry || entry.isVacation){
+    detailCard.innerHTML = '<div class="empty-hint">Select a day on the calendar to see its training details.</div>';
+    return;
+  }
+  const phase = PHASES[entry.phaseIndex];
+  const dayInPhase = entry.trainingDay - (BOUNDARIES[entry.phaseIndex-1] || 0) + 1;
+
+  detailCard.innerHTML = `
+    <span class="phase-pill" style="background:${phase.color}">${phase.name}</span>
+    <div class="day-meta">${fmtDate(entry.date)} · training day ${dayInPhase} of ${phase.days} in this phase</div>
+
+    <h3>Volume</h3>
+    <div class="vol-line">${phase.volume}</div>
+
+    <h3>Exercises</h3>
+    <table>
+      ${phase.exercises.map(([n,d]) => `<tr><td class="ex-name">${n}</td><td class="ex-desc">${d}</td></tr>`).join('')}
+    </table>
+
+    <h3>Effect on curves</h3>
+    <div class="curve-effect">Lactate curve: ${phase.lactate}</div>
+    <div class="curve-effect">Power-duration curve: ${phase.cf}</div>
+
+    <h3>Nutrition</h3>
+    <div class="nutrition-text">${phase.nutrition}</div>
+  `;
+}
+
+function renderAll(){
+  const plan = currentPlan();
+  renderStatus(plan);
+  renderCalendar(plan);
+  renderDetail(plan);
+}
+
+vacBtn.addEventListener('click', ()=>{
+  vacMode = !vacMode;
+  vacBtn.classList.toggle('active', vacMode);
+  vacBtn.textContent = vacMode ? "Done marking vacation" : "Mark vacation days";
+  document.getElementById('calCard').classList.toggle('vac-mode', vacMode);
+  renderAll();
+});
+
+startInput.addEventListener('change', ()=>{
+  selectedIso = null;
+  const d = dateFromIso(startInput.value || todayIso());
+  viewYear = d.getFullYear();
+  viewMonth = d.getMonth();
+  saveState();
+  renderAll();
+});
+
+prevMonthBtn.addEventListener('click', ()=>{
+  viewMonth--;
+  if(viewMonth < 0){ viewMonth = 11; viewYear--; }
+  renderAll();
+});
+nextMonthBtn.addEventListener('click', ()=>{
+  viewMonth++;
+  if(viewMonth > 11){ viewMonth = 0; viewYear++; }
+  renderAll();
+});
+jumpTodayBtn.addEventListener('click', ()=>{
+  const now = new Date();
+  viewYear = now.getFullYear();
+  viewMonth = now.getMonth();
+  renderAll();
+});
+statusCard.addEventListener('click', ()=>{
+  const plan = currentPlan();
+  const tIso = todayIso();
+  const entry = plan.map.get(tIso);
+  const now = new Date();
+  viewYear = now.getFullYear();
+  viewMonth = now.getMonth();
+  if(entry && !entry.isVacation){
+    selectedIso = tIso;
+    saveState();
+  }
+  renderAll();
+});
+
+function updateOnlineStatus(){
+  offlineBanner.hidden = navigator.onLine;
+}
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+
+/* init */
+(function init(){
+  const saved = loadState();
+  if(saved && saved.startDate){
+    startInput.value = saved.startDate;
+    vacationSet = new Set(saved.vacations || []);
+    selectedIso = saved.selectedIso || null;
+  } else {
+    startInput.value = todayIso();
+  }
+  const d = dateFromIso(startInput.value);
+  viewYear = d.getFullYear();
+  viewMonth = d.getMonth();
+
+  renderLegend();
+  renderAll();
+  updateOnlineStatus();
+})();
+
+/* PWA install prompt */
+let deferredInstallPrompt = null;
+const installBanner = document.getElementById('installBanner');
+const installBtn = document.getElementById('installBtn');
+const installDismiss = document.getElementById('installDismiss');
+window.addEventListener('beforeinstallprompt', (e)=>{
+  e.preventDefault();
+  deferredInstallPrompt = e;
+  if(!localStorage.getItem('installDismissed')){
+    installBanner.hidden = false;
+  }
+});
+installBtn && installBtn.addEventListener('click', async ()=>{
+  installBanner.hidden = true;
+  if(deferredInstallPrompt){
+    deferredInstallPrompt.prompt();
+    await deferredInstallPrompt.userChoice;
+    deferredInstallPrompt = null;
+  }
+});
+installDismiss && installDismiss.addEventListener('click', ()=>{
+  installBanner.hidden = true;
+  try{ localStorage.setItem('installDismissed','1'); }catch(e){}
+});
+
+/* Service worker registration for offline support */
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{});
+  });
+}
+</script>
+</body>
+</html>
